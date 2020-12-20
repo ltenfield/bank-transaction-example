@@ -1,4 +1,4 @@
-use bankex::{args::Args,read};
+use bankex::{Ledger, args::Args, ledger::InMemoryLedger, read};
 //use std::io::Result;
 
 fn main() {
@@ -15,6 +15,11 @@ fn main() {
     if verbose {
         eprintln!("got [{:?}] transactions",transactions.len());
     }
+    let mut ledger = InMemoryLedger::new();
+    //let mut hm = ledger.clients;
+
+    ledger.process_deposit(&transactions[0]).unwrap();
+    ledger.process_deposit(&transactions[2]).unwrap();
 
     //Ok(())
 }
