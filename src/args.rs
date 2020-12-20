@@ -10,7 +10,7 @@ impl Args {
         let matches = App::new("bankex")
             .version("0.1.0")
             .arg(Arg::with_name("infile")
-                .takes_value(true).required(true).help("Read from a file instead of stdin"))
+                .takes_value(true).required(true).help("path and file to read from"))
             .arg(Arg::with_name("verbose").short("v").long("verbose").help("debug and error output"))
             .get_matches();
         let infile = matches.value_of("infile").unwrap_or_default().to_string();
