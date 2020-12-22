@@ -4,7 +4,6 @@ use std::{error::Error};
 use rust_decimal::Decimal;
 
 const ILLEGAL_STATE: &'static str = "Illegal state error";
-const NOT_IMPLEMENTED: &'static str = "not implemented";
 
 #[derive(Debug)]
 pub struct InMemoryLedger {
@@ -323,17 +322,34 @@ impl Ledger for InMemoryLedger {
         return Ok(());
     }
 
-    fn get_funds_available(client_id: u16) -> Result<Decimal, Box<dyn Error>> {
-        return Err(NOT_IMPLEMENTED.into());    }
+    fn get_funds_available(&self, client_id: u16) -> Result<Decimal, Box<dyn Error>> {
+        let available = match self.by_client_id.get(&client_id) {
+            Some(v) => v.available,
+            None => { return Err("account status not initialized".into())}
+        };
+        return Ok(available)
+    }
     
-    fn get_funds_held(client_id: u16) -> Result<Decimal, Box<dyn Error>> {
-        return Err(NOT_IMPLEMENTED.into());    }
+    fn get_funds_held(&self, client_id: u16) -> Result<Decimal, Box<dyn Error>> {
+        let available = match self.by_client_id.get(&client_id) {
+            Some(v) => v.available,
+            None => { return Err("account status not initialized".into())}
+        };
+        return Ok(available)
+    }
+
+    fn get_funds_total(&self, client_id: u16) -> Result<Decimal, Box<dyn Error>> {
+        let cas = match self.by_client_id.get(&client_id) {
+            Some(v) => v,
+            None => { return Err("account status not initialized".into())}
+        };
+        let total = cas.available + cas.held;
+        return Ok(total);
+    }
     
-    fn get_funds_total(client_id: u16) -> Result<Decimal, Box<dyn Error>> {
-        return Err(NOT_IMPLEMENTED.into());    }
-    
-    fn get_all_client_ids() -> Result<Vec<u16>, Box<dyn Error>> {
-        return Err(NOT_IMPLEMENTED.into());    }
+    // fn get_all_clients(&self) -> Result<HashMap<u16, AccountStatus>, Box<dyn Error>> {
+    //     return Ok(self.by_client_id);
+    // }
 
     fn verify_transaction(&self, trans: &Transaction) -> Result<(), Box<dyn Error>> {
         if trans.client == None || trans.tx == None {

@@ -4,8 +4,7 @@ use crate::{MAX_DECIMAL_PLACES, Transaction};
 use csv::{ReaderBuilder};
 use std::error::Error;
 use rust_decimal::Decimal;
-use std::collections::{HashMap,hash_map::Entry::{Occupied,Vacant}};
-use std::collections::BTreeMap;
+use std::collections::BTreeMap; // use this since it's keep iterator sorted by key
 
 //use std::{fs::File};
 

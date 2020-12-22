@@ -32,17 +32,16 @@ pub struct Transaction {
 #[derive(Debug, Clone)]
 pub struct AccountStatus {
    client:   u16,
-   available:    Decimal,
-   held:    Decimal,
+   pub available:    Decimal,
+   pub held:    Decimal,
    total:    Decimal,
-   locked:  bool
+   pub locked:  bool
 }
 
 pub trait Ledger {
    fn process_transaction(&mut self,verbose: bool, trans: &Transaction) -> Result<(), Box<dyn Error>>;
-   fn get_funds_available(client_id: u16) -> Result<Decimal, Box<dyn Error>>;
-   fn get_funds_held( client_id: u16) -> Result<Decimal, Box<dyn Error>>;
-   fn get_funds_total( client_id: u16) -> Result<Decimal, Box<dyn Error>>;
-   fn get_all_client_ids() -> Result<Vec<u16>, Box<dyn Error>>;
+   fn get_funds_available(&self, client_id: u16) -> Result<Decimal, Box<dyn Error>>;
+   fn get_funds_held(&self, client_id: u16) -> Result<Decimal, Box<dyn Error>>;
+   fn get_funds_total(&self, client_id: u16) -> Result<Decimal, Box<dyn Error>>;
    fn verify_transaction(&self, trans: &Transaction) -> Result<(), Box<dyn Error>>;
 }

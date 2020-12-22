@@ -1,6 +1,5 @@
 use bankex::{Ledger, args::Args, ledger::InMemoryLedger, read};
 
-
 fn main() {
     let args = Args::parse();
     let Args {
@@ -56,5 +55,12 @@ fn main() {
             };
             eprintln!("processed chargeback txid:[{:?}] transaction:[{:?}]",txid,transaction);
         }
+    }
+
+    let all_clients = ledger.by_client_id;
+    println!("\nclient, available, held, total, locked");
+    for (cid, cas) in all_clients {
+        let total = cas.available + cas.held;
+        println!("{},{},{},{},{}",cid,cas.available,cas.held,total,cas.locked);
     }
 }
