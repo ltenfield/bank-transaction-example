@@ -39,10 +39,10 @@ pub struct AccountStatus {
 }
 
 pub trait Ledger {
-   fn process_transaction(&mut self, trans: &Transaction) -> Result<(), Box<dyn Error>>;
-   fn get_funds_available(&mut self, client_id: u16) -> Result<Decimal, Box<dyn Error>>;
-   fn get_funds_held(&mut self, client_id: u16) -> Result<Decimal, Box<dyn Error>>;
-   fn get_funds_total(&mut self, client_id: u16) -> Result<Decimal, Box<dyn Error>>;
-   fn get_all_client_ids(&mut self) -> Result<Vec<u16>, Box<dyn Error>>;
-   fn verify_transaction(trans: &Transaction) -> Result<(), Box<dyn Error>>;
+   fn process_transaction(&mut self,verbose: bool, trans: &Transaction) -> Result<(), Box<dyn Error>>;
+   fn get_funds_available(client_id: u16) -> Result<Decimal, Box<dyn Error>>;
+   fn get_funds_held( client_id: u16) -> Result<Decimal, Box<dyn Error>>;
+   fn get_funds_total( client_id: u16) -> Result<Decimal, Box<dyn Error>>;
+   fn get_all_client_ids() -> Result<Vec<u16>, Box<dyn Error>>;
+   fn verify_transaction(&self, trans: &Transaction) -> Result<(), Box<dyn Error>>;
 }

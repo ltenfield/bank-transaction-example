@@ -15,11 +15,14 @@ fn main() {
     if verbose {
         eprintln!("got [{:?}] transactions",transactions.len());
     }
-    let mut ledger = InMemoryLedger::new();
+    let mut ledger = InMemoryLedger::default();
     //let mut hm = ledger.clients;
 
-    ledger.process_deposit(&transactions[0]).unwrap();
-    ledger.process_deposit(&transactions[2]).unwrap();
+    // ledger.process_transaction(&transactions[0]).unwrap();
+    // ledger.process_transaction(&transactions[2]).unwrap();
+    for transaction in transactions {
+        ledger.process_transaction(verbose, &transaction).unwrap();
+    }
 
     //Ok(())
 }

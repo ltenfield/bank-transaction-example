@@ -1,18 +1,27 @@
 use crate::{AccountStatus, Ledger, Transaction, TransactionType};
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap};
+use std::{error::Error};
 use rust_decimal::Decimal;
 
+const ILLEGAL_STATE: &'static str = "Illegal state error";
+const NOT_IMPLEMENTED: &'static str = "not implemented";
+
+#[derive(Debug)]
 pub struct InMemoryLedger {
-    pub clients: HashMap<u16, AccountStatus>
+    pub account_status: HashMap<u16, AccountStatus>
+}
+
+impl Default for InMemoryLedger {
+    fn default() -> Self {
+        Self {
+            account_status: HashMap::new()
+        }
+    }
 }
 
 impl InMemoryLedger {
 
-    pub fn new() -> InMemoryLedger {
-        return InMemoryLedger{ clients: HashMap::new() }
-    }
-
-    fn create_empty_accountstatus(&mut self, client_id: u16) -> AccountStatus {
+    fn create_empty_accountstatus(client_id: u16) -> AccountStatus {
         let nas = AccountStatus { 
             client: client_id, 
             available: Decimal::new(0,0), 
@@ -22,89 +31,52 @@ impl InMemoryLedger {
     }
 
     pub fn process_deposit(&mut self, trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        println!("incomming transaction:[{:?}] clients:[{:?}]",trans,self.clients.len());
         let cid = match trans.client {
             Some(v) => v,
             None => return Err("need client id from transaction".into()),
         };
-        //let uscid = cid as usize;
-        //let old = self.clients.insert(cid, nas);
-        let v = self.clients.get_mut(&cid);
-        println!("initial account status:[{:?}]",v);
-        if let Some(accs1) = v {
-            println!("found account:[{:?}]",accs1);
-            match trans.amount {
-                Some(dec) => {
-                    accs1.available = match accs1.available.checked_add(dec) {
-                        Some(v3) => v3,
-                        None => accs1.available,
-                    };
-                    println!("found [{:?}]  added:[{:?}]",accs1,dec);
-                },
-                None => {}
-            };
-        } else {
-            { 
-                let mut accs = AccountStatus { 
-                    client: cid, 
-                    available: Decimal::new(0,0), 
-                    held: Decimal::new(0,0), locked: false, 
-                    total: Decimal::new(0,0)};
-                println!("creating account status adding trans:[{:?}]",trans);
-                //let mut accs = self.create_empty_accountstatus(cid);
-                match trans.amount {
-                    Some(dec) => {
-                        accs.available = match accs.available.checked_add(dec) {
-                            Some(v2) => v2,
-                            None => accs.available,
-                        };
-                        println!("available added:[{:?}] to get:[{:?}]",dec,accs);
-                    },
-                    None => {}
-                };
-
+        let amount = match trans.amount {
+            Some(v) => {v},
+            None => {Decimal::new(0,0)},
+        };
+        match self.account_status.entry(cid) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                let mut acct_status = entry.get_mut();
+                let current_available = acct_status.available;
+                acct_status.available = current_available + amount;
+            },
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                let mut acct_status = Self::create_empty_accountstatus(cid);
+                acct_status.available = amount;
+                entry.insert(acct_status);
             }
         }
-
-        //let zero :u16 = 0;
-        // let r = match v {
-        //     Some(&as) => as.cid,
-        //     None => zero
-        // };
-        //println!("got AccountStatus:[{:?}] old:[{:?}]",v,v);
-
         return Ok(());
-        //let a_string_error = "not implemented".to_string();
-        //let a_boxed_error = Box::<dyn Error>::from(a_string_error);
-        //return Err("not implemented".into());
     }
 
-    fn process_withdrawal(&mut self, trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        Ok(())
+    pub fn process_withdrawal(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        return Err(NOT_IMPLEMENTED.into());
     }
 
-    fn process_chargeback(&mut self, trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        let a_string_error = "not implemented".to_string();
-        let a_boxed_error = Box::<dyn Error>::from(a_string_error);
-        return Err(a_boxed_error);
+    fn process_chargeback(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        return Err(NOT_IMPLEMENTED.into());
     }
 
-    fn process_dispute(&mut self, trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        let a_string_error = "not implemented".to_string();
-        let a_boxed_error = Box::<dyn Error>::from(a_string_error);
-        return Err(a_boxed_error);
+    fn process_dispute(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        return Err(NOT_IMPLEMENTED.into());
     }
 
-    fn process_resolve(&mut self, trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        let a_string_error = "not implemented".to_string();
-        let a_boxed_error = Box::<dyn Error>::from(a_string_error);
-        return Err(a_boxed_error);
+    fn process_resolve(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        return Err(NOT_IMPLEMENTED.into());
     }
 }
 
 impl Ledger for InMemoryLedger {
-    fn process_transaction(&mut self, trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        Self::verify_transaction(trans).unwrap();
+    fn process_transaction(&mut self,verbose: bool, trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        if verbose {
+            eprintln!("incomming transaction:[{:?}] available:[{:?}]",trans,self.account_status);
+        }
+        Self::verify_transaction(&self,trans).unwrap();
         match trans.transaction_type {
             TransactionType::Deposit => {
                 self.process_deposit(trans)?;
@@ -122,44 +94,38 @@ impl Ledger for InMemoryLedger {
                 self.process_resolve(trans)?; 
             }
         };
+        if verbose {
+            eprintln!("after transaction:[{:?}] available:[{:?}]",trans,self.account_status);
+        }        
         return Ok(());
     }
 
-    fn get_funds_available(&mut self, client_id: u16) -> Result<Decimal, Box<dyn Error>> {
-        let a_string_error = "not implemented".to_string();
-        let a_boxed_error = Box::<dyn Error>::from(a_string_error);
-        return Err(a_boxed_error);
-    }
+    fn get_funds_available(client_id: u16) -> Result<Decimal, Box<dyn Error>> {
+        return Err(NOT_IMPLEMENTED.into());    }
     
-    fn get_funds_held(&mut self, client_id: u16) -> Result<Decimal, Box<dyn Error>> {
-        let a_string_error = "not implemented".to_string();
-        let a_boxed_error = Box::<dyn Error>::from(a_string_error);
-        return Err(a_boxed_error);
-    }
+    fn get_funds_held(client_id: u16) -> Result<Decimal, Box<dyn Error>> {
+        return Err(NOT_IMPLEMENTED.into());    }
     
-    fn get_funds_total(&mut self, client_id: u16) -> Result<Decimal, Box<dyn Error>> {
-        let a_string_error = "not implemented".to_string();
-        let a_boxed_error = Box::<dyn Error>::from(a_string_error);
-        return Err(a_boxed_error);
-    }
+    fn get_funds_total(client_id: u16) -> Result<Decimal, Box<dyn Error>> {
+        return Err(NOT_IMPLEMENTED.into());    }
     
-    fn get_all_client_ids(&mut self) -> Result<Vec<u16>, Box<dyn Error>> {
-        let a_string_error = "not implemented".to_string();
-        let a_boxed_error = Box::<dyn Error>::from(a_string_error);
-        return Err(a_boxed_error);
-    }
+    fn get_all_client_ids() -> Result<Vec<u16>, Box<dyn Error>> {
+        return Err(NOT_IMPLEMENTED.into());    }
 
-    fn verify_transaction(trans: &Transaction) -> Result<(), Box<dyn Error>> {
+    fn verify_transaction(&self, trans: &Transaction) -> Result<(), Box<dyn Error>> {
         if trans.client == None || trans.tx == None {
-            return Err("Illegal state error".into());
+            return Err(ILLEGAL_STATE.into());
         }
-        if trans.transaction_type != TransactionType::Dispute || trans.transaction_type != TransactionType::Resolve {
-            return Err("Illegal state error".into());
+        if trans.transaction_type == TransactionType::Dispute || trans.transaction_type == TransactionType::Resolve {
+            if trans.amount != None {
+                return Err(ILLEGAL_STATE.into());
+            }
+        } else {
+            if trans.amount == None {
+                return Err(ILLEGAL_STATE.into());
+            }
         }
         Ok(())
-        // let a_string_error = "not implemented".to_string();
-        // let a_boxed_error = Box::<dyn Error>::from(a_string_error);
-        // return Err(a_boxed_error);
     }
     
 }
