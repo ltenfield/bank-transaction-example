@@ -1,23 +1,33 @@
 use csv::Trim;
 //use serde::Deserialize;
 use crate::{MAX_DECIMAL_PLACES, Transaction};
-use csv::{Error, ReaderBuilder};
+use csv::{ReaderBuilder};
+use std::error::Error;
 use rust_decimal::Decimal;
+use std::collections::{HashMap,hash_map::Entry::{Occupied,Vacant}};
+use std::collections::BTreeMap;
+
 //use std::{fs::File};
 
-pub fn transaction_reader(verbose: bool, path: &str) -> Result<Vec<Transaction>, Box<Error>> {
+pub fn transaction_reader(verbose: bool, path: &str) -> Result<(BTreeMap<u32, Transaction>, Vec<Transaction>, Vec<Transaction>, Vec<Transaction>), Box<dyn Error>> {
     let mut rb = ReaderBuilder::new();
     let mut rdr = rb
         .flexible(true) // needed to allow optional amount column at end
         .trim(Trim::All)// needed to enable field parsing
         .from_path(path)?;
     let it = rdr.deserialize();
-    let mut result: Vec<Transaction> = Vec::new();
+    let mut dispute_result: Vec<Transaction> = Vec::new();
+    let mut resolve_result: Vec<Transaction> = Vec::new();
+    let mut chargeback_result: Vec<Transaction> = Vec::new();
+    let mut wd_result = BTreeMap::<u32, Transaction>::new();
     for record in it {
         let mut trans: Transaction = match record {
             Ok(t) => t,
             Err(e) => return Err(Box::new(e)),
-                //Transaction{ transaction_type: crate::TransactionType::Deposit, client: None, tx: None, amount: None }
+        };
+        let tid = match trans.tx {
+            Some(v) => v,
+            None => return Err("No transaction id".into())
         };
         let original_amount = match trans.amount {
             Some(a) => a,
@@ -39,9 +49,37 @@ pub fn transaction_reader(verbose: bool, path: &str) -> Result<Vec<Transaction>,
             };    
             eprintln!("transaction:[{:?} amount scale:[{:?}]]",trans,verbose_amount.scale());
         }
-        result.push(trans);
+        match trans.transaction_type {
+            crate::TransactionType::Deposit => {
+                wd_result.insert(tid, trans);
+            },
+            crate::TransactionType::Withdrawal => {
+                wd_result.insert(tid, trans);
+            }
+            crate::TransactionType::Dispute => {
+                dispute_result.push(trans);
+            }
+            crate::TransactionType::Resolve => {
+                resolve_result.push(trans);
+            }
+            crate::TransactionType::Chargeback => {
+                chargeback_result.push(trans);
+            }
+        }
+
+        //wd_result.insert(tid, trans);
+        // match result.entry(tid) {
+        //     Occupied(_) => {
+        //         if verbose {
+        //             eprintln!("tx id:[{:?}] already exists skipping record",tid);
+        //         }
+        //     },
+        //     Vacant(entry) => {
+        //         entry.insert(trans);
+        //     }
+        // };
     }
-    Ok(result)
+    Ok((wd_result, dispute_result, resolve_result, chargeback_result))
 }
 
 // pub fn transaction_iterator(verbose: bool, path: &str) -> Result<DeserializeRecordsIter<File, Transaction>, Box<Error>> {

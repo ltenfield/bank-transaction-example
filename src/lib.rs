@@ -26,7 +26,7 @@ pub struct Transaction {
    #[serde(rename = "type")]
    transaction_type: TransactionType,
    client: Option<u16>,
-   tx: Option<u32>,
+   pub tx: Option<u32>,
    amount: Option<Decimal>
 }
 #[derive(Debug, Clone)]
