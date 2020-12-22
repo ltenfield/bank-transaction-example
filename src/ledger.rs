@@ -54,8 +54,31 @@ impl InMemoryLedger {
         return Ok(());
     }
 
-    pub fn process_withdrawal(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        return Err(NOT_IMPLEMENTED.into());
+    pub fn process_withdrawal(&mut self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        let cid = match trans.client {
+            Some(v) => v,
+            None => return Err("need client id from transaction".into()),
+        };
+        let amount = match trans.amount {
+            Some(v) => {v},
+            None => return Err("need amount from transaction".into()),
+        };
+        match self.account_status.entry(cid) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                let mut acct_status = entry.get_mut();
+                let current_available = acct_status.available;
+                if amount > current_available {
+                    return Err("Insufficient funds".into());
+                }
+                acct_status.available = current_available + amount;
+            },
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                let mut acct_status = Self::create_empty_accountstatus(cid);
+                acct_status.available = amount;
+                entry.insert(acct_status);
+            }
+        }
+        return Ok(());
     }
 
     fn process_chargeback(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
@@ -82,7 +105,14 @@ impl Ledger for InMemoryLedger {
                 self.process_deposit(trans)?;
             },
             TransactionType::Withdrawal => {
-                self.process_withdrawal(trans)?; 
+                match self.process_withdrawal(trans) {
+                    Ok(_) => {},
+                    Err(e) => {
+                        if verbose {
+                            eprintln!("skipping withdrawal transaction reason:[{}]",e);
+                        }
+                    }
+                } 
             },
             TransactionType::Chargeback => {
                 self.process_chargeback(trans)?; 
