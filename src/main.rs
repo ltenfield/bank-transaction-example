@@ -24,7 +24,7 @@ fn main() {
     for (txid, transaction) in withdraw_deposits {
         ledger.process_transaction(verbose, &transaction).unwrap();
         if verbose {
-            println!("txid:[{:?}] transaction:[{:?}]",txid,transaction);
+            eprintln!("processed withdraw or deposit txid:[{:?}] transaction:[{:?}]",txid,transaction);
         }
     }
     for transaction in disputes {
@@ -34,7 +34,7 @@ fn main() {
                 Some(v) => v,
                 None => 0
             };
-            println!("txid:[{:?}] transaction:[{:?}]",txid,transaction);
+            eprintln!("processed dispute txid:[{:?}] transaction:[{:?}]",txid,transaction);
         }
     }
     for transaction in resolves {
@@ -44,7 +44,7 @@ fn main() {
                 Some(v) => v,
                 None => 0
             };
-            println!("txid:[{:?}] transaction:[{:?}]",txid,transaction);
+            eprintln!("processed resolve txid:[{:?}] transaction:[{:?}]",txid,transaction);
         }
     }
     for transaction in chargebacks {
@@ -54,7 +54,7 @@ fn main() {
                 Some(v) => v,
                 None => 0
             };
-            println!("txid:[{:?}] transaction:[{:?}]",txid,transaction);
+            eprintln!("processed chargeback txid:[{:?}] transaction:[{:?}]",txid,transaction);
         }
     }
 }

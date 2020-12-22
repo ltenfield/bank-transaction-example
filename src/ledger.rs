@@ -185,29 +185,30 @@ impl InMemoryLedger {
                                 Some(v) => v,
                                 None => Decimal::new(0,0),
                             };
-                            if cat_amount_val <= cas.available {
-                                cas.available = cas.available - cat_amount_val;
+                            if cat_amount_val <= cas.held { // must have enough in help to resolve amount
+                                cas.available = cas.available + cat_amount_val;
+                                cas.held = cas.held - cat_amount_val;
                                 if verbose {
-                                    eprintln!("CHARGEBACK: funds:[{:?}] withdrawn for client id:[{:?}]",cat_amount_val,cid);
+                                    eprintln!("RESOLVE: funds:[{:?}] held for client id:[{:?}] were returned",cat_amount_val,cid);
                                 }
                             }
                         },
                         Vacant(_) => {
                             if verbose {
-                                eprintln!("CHARGEBACK: account status client id:[{:?}] not found",cid);
+                                eprintln!("RESOLVE: account status client id:[{:?}] not found",cid);
                             }
                         }
                     }
                 } else {
                     if verbose {
-                        eprintln!("CHARGEBACK: found transaction id:[{:?}] however not for client id:[{:?}]",tid,cid);
+                        eprintln!("RESOLVE: found transaction id:[{:?}] however not for client id:[{:?}]",tid,cid);
                     }                    
                 }
 
             }
             Vacant(_) => {
                 if verbose {
-                    eprintln!("CHARGEBACK: transaction id:[{:?}] for client id:[{:?}] not found",tid,cid);
+                    eprintln!("RESOLVE: transaction id:[{:?}] for client id:[{:?}] not found",tid,cid);
                 }
             }
         }
@@ -238,31 +239,30 @@ impl InMemoryLedger {
                                 Some(v) => v,
                                 None => Decimal::new(0,0),
                             };
-                            if cat_amount_val <= cas.held {
-                                cas.available = cas.available + cat_amount_val;
-                                cas.held = cas.held - cat_amount_val;
+                            if cat_amount_val <= cas.available { // must have enough in available to chargeback amount (i.e. withdraw from account)
+                                cas.available = cas.available - cat_amount_val;
                                 cas.locked = true; // always freeze account after chargeback 
                                 if verbose {
-                                    eprintln!("RESOLVE: funds:[{:?}] held for client id:[{:?}] were returned",cat_amount_val,cid);
+                                    eprintln!("CHARGEBACK: funds:[{:?}] withdrawn for client id:[{:?}]",cat_amount_val,cid);
                                 }
                             }
                         },
                         Vacant(_) => {
                             if verbose {
-                                eprintln!("RESOLVE: account status client id:[{:?}] not found",cid);
+                                eprintln!("CHARGEBACK: account status client id:[{:?}] not found",cid);
                             }
                         }
                     }
                 } else {
                     if verbose {
-                        eprintln!("RESOLVE: found transaction id:[{:?}] however not for client id:[{:?}]",tid,cid);
+                        eprintln!("CHARGEBACK: found transaction id:[{:?}] however not for client id:[{:?}]",tid,cid);
                     }                    
                 }
 
             }
             Vacant(_) => {
                 if verbose {
-                    eprintln!("RESOLVE: transaction id:[{:?}] for client id:[{:?}] not found",tid,cid);
+                    eprintln!("CHARGEBACK: transaction id:[{:?}] for client id:[{:?}] not found",tid,cid);
                 }
             }
         }
@@ -280,6 +280,17 @@ impl Ledger for InMemoryLedger {
         if verbose {
             eprintln!("incomming transaction:[{:?}] available:[{:?}]",trans,account_status);
         }
+        match account_status {
+            Some(cas) => {
+                if cas.locked {
+                    if verbose {
+                        eprintln!("client account:[{:?}] locked skipping transaction",cid);
+                    }
+                    return Ok(()); 
+                }
+            },
+            None => {} // do nothing if account status for client is not found since account status could be created with transaction processing
+        };
         Self::verify_transaction(&self,trans).unwrap();
         match trans.transaction_type {
             TransactionType::Deposit => {
@@ -328,7 +339,9 @@ impl Ledger for InMemoryLedger {
         if trans.client == None || trans.tx == None {
             return Err(ILLEGAL_STATE.into());
         }
-        if trans.transaction_type == TransactionType::Dispute || trans.transaction_type == TransactionType::Resolve {
+        if trans.transaction_type == TransactionType::Dispute
+            || trans.transaction_type == TransactionType::Resolve
+            || trans.transaction_type == TransactionType::Chargeback {
             if trans.amount != None {
                 return Err(ILLEGAL_STATE.into());
             }
