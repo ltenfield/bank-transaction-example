@@ -1,5 +1,5 @@
 use crate::{AccountStatus, Ledger, Transaction, TransactionType};
-use std::{collections::HashMap};
+use std::collections::{HashMap,hash_map::Entry::{Occupied,Vacant}};
 use std::{error::Error};
 use rust_decimal::Decimal;
 
@@ -8,13 +8,15 @@ const NOT_IMPLEMENTED: &'static str = "not implemented";
 
 #[derive(Debug)]
 pub struct InMemoryLedger {
-    pub account_status: HashMap<u16, AccountStatus>
+    pub by_client_id: HashMap<u16, AccountStatus>,
+    pub by_transaction_id: HashMap<u32, AccountStatus>
 }
 
 impl Default for InMemoryLedger {
     fn default() -> Self {
         Self {
-            account_status: HashMap::new()
+            by_client_id: HashMap::new(),
+            by_transaction_id: HashMap::new()
         }
     }
 }
@@ -35,17 +37,33 @@ impl InMemoryLedger {
             Some(v) => v,
             None => return Err("need client id from transaction".into()),
         };
+        let tid = match trans.tx {
+            Some(v) => v,
+            None => return Err("need transaction id from transaction".into()),
+        };
         let amount = match trans.amount {
             Some(v) => {v},
             None => {Decimal::new(0,0)},
         };
-        match self.account_status.entry(cid) {
-            std::collections::hash_map::Entry::Occupied(mut entry) => {
+        match self.by_client_id.entry(cid) {
+            Occupied(mut entry) => {
                 let mut acct_status = entry.get_mut();
                 let current_available = acct_status.available;
                 acct_status.available = current_available + amount;
             },
-            std::collections::hash_map::Entry::Vacant(entry) => {
+            Vacant(entry) => {
+                let mut acct_status = Self::create_empty_accountstatus(cid);
+                acct_status.available = amount;
+                entry.insert(acct_status);
+            }
+        }
+        match self.by_transaction_id.entry(tid) {
+            Occupied(mut entry) => {
+                let mut acct_status = entry.get_mut();
+                let current_available = acct_status.available;
+                acct_status.available = current_available + amount;               
+            },
+            Vacant(entry) => {
                 let mut acct_status = Self::create_empty_accountstatus(cid);
                 acct_status.available = amount;
                 entry.insert(acct_status);
@@ -59,23 +77,38 @@ impl InMemoryLedger {
             Some(v) => v,
             None => return Err("need client id from transaction".into()),
         };
+        let tid = match trans.tx {
+            Some(v) => v,
+            None => return Err("need transaction id from transaction".into()),
+        };
         let amount = match trans.amount {
             Some(v) => {v},
             None => return Err("need amount from transaction".into()),
         };
-        match self.account_status.entry(cid) {
-            std::collections::hash_map::Entry::Occupied(mut entry) => {
+        match self.by_client_id.entry(cid) {
+            Occupied(mut entry) => {
                 let mut acct_status = entry.get_mut();
                 let current_available = acct_status.available;
                 if amount > current_available {
                     return Err("Insufficient funds".into());
                 }
-                acct_status.available = current_available + amount;
+                acct_status.available = current_available - amount;
             },
-            std::collections::hash_map::Entry::Vacant(entry) => {
-                let mut acct_status = Self::create_empty_accountstatus(cid);
-                acct_status.available = amount;
-                entry.insert(acct_status);
+            Vacant(_) => {
+                return Err("Insufficient funds, non existent by client id".into());
+            }
+        }
+        match self.by_transaction_id.entry(tid) {
+            Occupied(mut entry) => {
+                let mut acct_status = entry.get_mut();
+                let current_available = acct_status.available;
+                if amount > current_available {
+                    return Err("Insufficient funds".into());
+                }
+                acct_status.available = current_available - amount;
+            },
+            Vacant(_) => {
+                return Err("Insufficient funds, non existent by transaction id".into());
             }
         }
         return Ok(());
@@ -97,7 +130,7 @@ impl InMemoryLedger {
 impl Ledger for InMemoryLedger {
     fn process_transaction(&mut self,verbose: bool, trans: &Transaction) -> Result<(), Box<dyn Error>> {
         if verbose {
-            eprintln!("incomming transaction:[{:?}] available:[{:?}]",trans,self.account_status);
+            eprintln!("incomming transaction:[{:?}] available:[{:?}]",trans,self.by_client_id);
         }
         Self::verify_transaction(&self,trans).unwrap();
         match trans.transaction_type {
@@ -125,7 +158,7 @@ impl Ledger for InMemoryLedger {
             }
         };
         if verbose {
-            eprintln!("after transaction:[{:?}] available:[{:?}]",trans,self.account_status);
+            eprintln!("after transaction:[{:?}] available:[{:?}]",trans,self.by_client_id);
         }        
         return Ok(());
     }
