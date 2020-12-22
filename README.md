@@ -4,6 +4,28 @@
 
 The challenge is to implement a simple toy payments engine that reads a series of transactions from a CSV, updates client accounts, handles disputes and chargebacks, and then outputs the state of clients accounts as a CSV.
 
+## CLI usage
+
+This build the project and shows help
+```shell
+cargo run --  --help
+
+    Finished dev [unoptimized + debuginfo] target(s) in 2.48s
+     Running `target/debug/bankex --help`
+
+bankex 0.1.0
+
+USAGE:
+    bankex [FLAGS] <infile>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+    -v, --verbose    debug and error output
+
+ARGS:
+    <infile>    path and file to read from
+```
 ## Scoring
 
 You will be scored on the following criteria

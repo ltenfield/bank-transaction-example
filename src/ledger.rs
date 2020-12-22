@@ -123,7 +123,7 @@ impl InMemoryLedger {
                     Some(v) => v,
                     None => 0
                 };
-                if clientid == cid {  // only proceed if transaction is for the right client id inidcate in dispute
+                if clientid == cid {  // only proceed if transaction is for the right client id indicated in dispute
                     match self.by_client_id.entry(cid) {
                         Occupied(mut client_account_status) => {
                             let mut cas = client_account_status.get_mut();
@@ -131,17 +131,17 @@ impl InMemoryLedger {
                                 Some(v) => v,
                                 None => Decimal::new(0,0),
                             };
-                            if cat_amount_val < cas.available {
+                            if cat_amount_val <= cas.available {
                                 cas.available = cas.available - cat_amount_val;
                                 cas.held = cas.held + cat_amount_val;
                                 if verbose {
-                                    eprintln!("Funds:[{:?}] held for client id:[{:?}]",cat_amount_val,cid);
+                                    eprintln!("DISPUTE: Funds:[{:?}] held for client id:[{:?}]",cat_amount_val,cid);
                                 }
                             }
                         },
                         Vacant(_) => {
                             if verbose {
-                                eprintln!("account status client id:[{:?}] not found",cid);
+                                eprintln!("DISPUTE: account status client id:[{:?}] not found",cid);
                             }
                         }
                     }
@@ -154,26 +154,131 @@ impl InMemoryLedger {
             }
             Vacant(_) => {
                 if verbose {
-                    eprintln!("transaction id:[{:?}] for client id:[{:?}] not found",tid,cid);
+                    eprintln!("DISPUTE: transaction id:[{:?}] for client id:[{:?}] not found",tid,cid);
                 }
             }
         }
         return Ok(());
     }
 
-    fn process_resolve(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        return Err(NOT_IMPLEMENTED.into());
+    fn process_resolve(&mut self,verbose: bool,trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        let cid = match trans.client {
+            Some(v) => v,
+            None => return Err("need client id from transaction".into()),
+        };
+        let tid = match trans.tx {
+            Some(v) => v,
+            None => return Err("need transaction id from transaction".into()),
+        };
+        match self.by_transaction_id.entry(tid) {
+            Occupied(client_transaction) => {
+                let ct = client_transaction.get();
+                let clientid = match ct.client {
+                    Some(v) => v,
+                    None => 0
+                };
+                if clientid == cid {  // only proceed if transaction is for the right client id indicated in dispute
+                    match self.by_client_id.entry(cid) {
+                        Occupied(mut client_account_status) => {
+                            let mut cas = client_account_status.get_mut();
+                            let cat_amount_val = match ct.amount {
+                                Some(v) => v,
+                                None => Decimal::new(0,0),
+                            };
+                            if cat_amount_val <= cas.available {
+                                cas.available = cas.available - cat_amount_val;
+                                if verbose {
+                                    eprintln!("CHARGEBACK: funds:[{:?}] withdrawn for client id:[{:?}]",cat_amount_val,cid);
+                                }
+                            }
+                        },
+                        Vacant(_) => {
+                            if verbose {
+                                eprintln!("CHARGEBACK: account status client id:[{:?}] not found",cid);
+                            }
+                        }
+                    }
+                } else {
+                    if verbose {
+                        eprintln!("CHARGEBACK: found transaction id:[{:?}] however not for client id:[{:?}]",tid,cid);
+                    }                    
+                }
+
+            }
+            Vacant(_) => {
+                if verbose {
+                    eprintln!("CHARGEBACK: transaction id:[{:?}] for client id:[{:?}] not found",tid,cid);
+                }
+            }
+        }
+        return Ok(());
     }
 
-    fn process_chargeback(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        return Err(NOT_IMPLEMENTED.into());
+    fn process_chargeback(&mut self,verbose: bool, trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        let cid = match trans.client {
+            Some(v) => v,
+            None => return Err("need client id from transaction".into()),
+        };
+        let tid = match trans.tx {
+            Some(v) => v,
+            None => return Err("need transaction id from transaction".into()),
+        };
+        match self.by_transaction_id.entry(tid) {
+            Occupied(client_transaction) => {
+                let ct = client_transaction.get();
+                let clientid = match ct.client {
+                    Some(v) => v,
+                    None => 0
+                };
+                if clientid == cid {  // only proceed if transaction is for the right client id indicated in dispute
+                    match self.by_client_id.entry(cid) {
+                        Occupied(mut client_account_status) => {
+                            let mut cas = client_account_status.get_mut();
+                            let cat_amount_val = match ct.amount {
+                                Some(v) => v,
+                                None => Decimal::new(0,0),
+                            };
+                            if cat_amount_val <= cas.held {
+                                cas.available = cas.available + cat_amount_val;
+                                cas.held = cas.held - cat_amount_val;
+                                cas.locked = true; // always freeze account after chargeback 
+                                if verbose {
+                                    eprintln!("RESOLVE: funds:[{:?}] held for client id:[{:?}] were returned",cat_amount_val,cid);
+                                }
+                            }
+                        },
+                        Vacant(_) => {
+                            if verbose {
+                                eprintln!("RESOLVE: account status client id:[{:?}] not found",cid);
+                            }
+                        }
+                    }
+                } else {
+                    if verbose {
+                        eprintln!("RESOLVE: found transaction id:[{:?}] however not for client id:[{:?}]",tid,cid);
+                    }                    
+                }
+
+            }
+            Vacant(_) => {
+                if verbose {
+                    eprintln!("RESOLVE: transaction id:[{:?}] for client id:[{:?}] not found",tid,cid);
+                }
+            }
+        }
+        return Ok(());
     }
 }
 
 impl Ledger for InMemoryLedger {
     fn process_transaction(&mut self,verbose: bool, trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        let cid = match trans.client {
+            Some(v) => v,
+            None => return Err("need client id from transaction".into()),
+        };
+        let account_status = self.by_client_id.get(&cid);
         if verbose {
-            eprintln!("incomming transaction:[{:?}] available:[{:?}]",trans,self.by_client_id);
+            eprintln!("incomming transaction:[{:?}] available:[{:?}]",trans,account_status);
         }
         Self::verify_transaction(&self,trans).unwrap();
         match trans.transaction_type {
@@ -190,18 +295,19 @@ impl Ledger for InMemoryLedger {
                     }
                 } 
             },
-            TransactionType::Chargeback => {
-                self.process_chargeback(trans)?; 
-            },
             TransactionType::Dispute => {
                 self.process_dispute(verbose,trans)?; 
             },
             TransactionType::Resolve => {
-                self.process_resolve(trans)?; 
+                self.process_resolve(verbose,trans)?; 
             }
+            TransactionType::Chargeback => {
+                self.process_chargeback(verbose,trans)?; 
+            },
         };
+        let new_account_status = self.by_client_id.get(&cid);
         if verbose {
-            eprintln!("after transaction:[{:?}] available:[{:?}]",trans,self.by_client_id);
+            eprintln!("after transaction:[{:?}] available:[{:?}]",trans,new_account_status);
         }        
         return Ok(());
     }
