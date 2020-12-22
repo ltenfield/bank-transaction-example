@@ -9,7 +9,7 @@ const NOT_IMPLEMENTED: &'static str = "not implemented";
 #[derive(Debug)]
 pub struct InMemoryLedger {
     pub by_client_id: HashMap<u16, AccountStatus>,
-    pub by_transaction_id: HashMap<u32, AccountStatus>
+    pub by_transaction_id: HashMap<u32, Transaction>
 }
 
 impl Default for InMemoryLedger {
@@ -45,23 +45,20 @@ impl InMemoryLedger {
             Some(v) => {v},
             None => {Decimal::new(0,0)},
         };
+        match self.by_transaction_id.entry(tid) {
+            Occupied(_) => {
+                //let bad_trans = entry.get();
+                return Err("Duplicate transaction".into());
+            },
+            Vacant(entry) => {
+                entry.insert(trans.clone());
+            }
+        }
         match self.by_client_id.entry(cid) {
             Occupied(mut entry) => {
                 let mut acct_status = entry.get_mut();
                 let current_available = acct_status.available;
                 acct_status.available = current_available + amount;
-            },
-            Vacant(entry) => {
-                let mut acct_status = Self::create_empty_accountstatus(cid);
-                acct_status.available = amount;
-                entry.insert(acct_status);
-            }
-        }
-        match self.by_transaction_id.entry(tid) {
-            Occupied(mut entry) => {
-                let mut acct_status = entry.get_mut();
-                let current_available = acct_status.available;
-                acct_status.available = current_available + amount;               
             },
             Vacant(entry) => {
                 let mut acct_status = Self::create_empty_accountstatus(cid);
@@ -85,6 +82,15 @@ impl InMemoryLedger {
             Some(v) => {v},
             None => return Err("need amount from transaction".into()),
         };
+        match self.by_transaction_id.entry(tid) {
+            Occupied(_) => {
+                //let bad_trans = entry.get();
+                return Err("Duplicate transaction".into());
+            },
+            Vacant(entry) => {
+                entry.insert(trans.clone());
+            }
+        }
         match self.by_client_id.entry(cid) {
             Occupied(mut entry) => {
                 let mut acct_status = entry.get_mut();
@@ -98,31 +104,68 @@ impl InMemoryLedger {
                 return Err("Insufficient funds, non existent by client id".into());
             }
         }
+        return Ok(());
+    }
+
+    fn process_dispute(&mut self, verbose: bool, trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        let cid = match trans.client {
+            Some(v) => v,
+            None => return Err("need client id from transaction".into()),
+        };
+        let tid = match trans.tx {
+            Some(v) => v,
+            None => return Err("need transaction id from transaction".into()),
+        };
         match self.by_transaction_id.entry(tid) {
-            Occupied(mut entry) => {
-                let mut acct_status = entry.get_mut();
-                let current_available = acct_status.available;
-                if amount > current_available {
-                    return Err("Insufficient funds".into());
+            Occupied(client_transaction) => {
+                let ct = client_transaction.get();
+                let clientid = match ct.client {
+                    Some(v) => v,
+                    None => 0
+                };
+                if clientid == cid {  // only proceed if transaction is for the right client id inidcate in dispute
+                    match self.by_client_id.entry(cid) {
+                        Occupied(mut client_account_status) => {
+                            let mut cas = client_account_status.get_mut();
+                            let cat_amount_val = match ct.amount {
+                                Some(v) => v,
+                                None => Decimal::new(0,0),
+                            };
+                            if cat_amount_val < cas.available {
+                                cas.available = cas.available - cat_amount_val;
+                                cas.held = cas.held + cat_amount_val;
+                                if verbose {
+                                    eprintln!("Funds:[{:?}] held for client id:[{:?}]",cat_amount_val,cid);
+                                }
+                            }
+                        },
+                        Vacant(_) => {
+                            if verbose {
+                                eprintln!("account status client id:[{:?}] not found",cid);
+                            }
+                        }
+                    }
+                } else {
+                    if verbose {
+                        eprintln!("DISPUTE: found transaction id:[{:?}] however not for client id:[{:?}]",tid,cid);
+                    }                    
                 }
-                acct_status.available = current_available - amount;
-            },
+
+            }
             Vacant(_) => {
-                return Err("Insufficient funds, non existent by transaction id".into());
+                if verbose {
+                    eprintln!("transaction id:[{:?}] for client id:[{:?}] not found",tid,cid);
+                }
             }
         }
         return Ok(());
     }
 
-    fn process_chargeback(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        return Err(NOT_IMPLEMENTED.into());
-    }
-
-    fn process_dispute(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
-        return Err(NOT_IMPLEMENTED.into());
-    }
-
     fn process_resolve(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
+        return Err(NOT_IMPLEMENTED.into());
+    }
+
+    fn process_chargeback(&self,trans: &Transaction) -> Result<(), Box<dyn Error>> {
         return Err(NOT_IMPLEMENTED.into());
     }
 }
@@ -151,7 +194,7 @@ impl Ledger for InMemoryLedger {
                 self.process_chargeback(trans)?; 
             },
             TransactionType::Dispute => {
-                self.process_dispute(trans)?; 
+                self.process_dispute(verbose,trans)?; 
             },
             TransactionType::Resolve => {
                 self.process_resolve(trans)?; 

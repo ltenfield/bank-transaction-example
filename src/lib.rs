@@ -7,7 +7,7 @@ pub mod ledger;
 
 const MAX_DECIMAL_PLACES: u32 = 4;
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 enum TransactionType {
    #[serde(rename = "deposit")]
    Deposit,
@@ -21,7 +21,7 @@ enum TransactionType {
    Chargeback
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Transaction {
    #[serde(rename = "type")]
    transaction_type: TransactionType,
