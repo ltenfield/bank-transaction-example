@@ -11,3 +11,4 @@ clap = "2.33.3"
 csv = "1.1.5"
 serde = { version = "1", features = ["derive"] }
 rust_decimal = "1.8.1"
+stringreader = "0.1.1"

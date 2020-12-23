@@ -2,6 +2,7 @@ use crate::{AccountStatus, Ledger, Transaction, TransactionType};
 use std::collections::{HashMap,hash_map::Entry::{Occupied,Vacant}};
 use std::{error::Error};
 use rust_decimal::Decimal;
+use std::collections::BTreeMap;
 
 const ILLEGAL_STATE: &'static str = "Illegal state error";
 
@@ -367,6 +368,55 @@ impl Ledger for InMemoryLedger {
             }
         }
         Ok(())
+    }
+
+    fn read_transactions(&mut self, verbose: bool, withdraw_deposits: BTreeMap<u32, Transaction>, disputes: Vec<Transaction>, resolves: Vec<Transaction>, chargebacks: Vec<Transaction>) {
+        for (txid, transaction) in withdraw_deposits {
+            self.process_transaction(verbose, &transaction).unwrap();
+            if verbose {
+                eprintln!("processed withdraw or deposit txid:[{:?}] transaction:[{:?}]",txid,transaction);
+            }
+        }
+        for transaction in disputes {
+           self.process_transaction(verbose, &transaction).unwrap();
+            if verbose {
+                let txid = match transaction.tx {
+                    Some(v) => v,
+                    None => 0
+                };
+                eprintln!("processed dispute txid:[{:?}] transaction:[{:?}]",txid,transaction);
+            }
+        }
+        for transaction in resolves {
+           self.process_transaction(verbose, &transaction).unwrap();
+           if verbose {
+                let txid = match transaction.tx {
+                    Some(v) => v,
+                    None => 0
+                };
+                eprintln!("processed resolve txid:[{:?}] transaction:[{:?}]",txid,transaction);
+            }
+        }
+        for transaction in chargebacks {
+           self.process_transaction(verbose, &transaction).unwrap();
+           if verbose {
+                let txid = match transaction.tx {
+                    Some(v) => v,
+                    None => 0
+                };
+                eprintln!("processed chargeback txid:[{:?}] transaction:[{:?}]",txid,transaction);
+            }
+        }
+    
+    }
+
+    fn run_report(&self) {
+        let all_clients = &self.by_client_id;
+        println!("\nclient, available, held, total, locked");
+        for (cid, cas) in all_clients {
+            let total = cas.available + cas.held;
+            println!("{},{},{},{},{}",cid,cas.available,cas.held,total,cas.locked);
+        }
     }
     
 }

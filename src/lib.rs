@@ -1,4 +1,5 @@
 use rust_decimal::Decimal;
+use std::collections::BTreeMap;
 use serde::Deserialize;
 use std::error::Error;
 pub mod args;
@@ -44,4 +45,6 @@ pub trait Ledger {
    fn get_funds_held(&self, client_id: u16) -> Result<Decimal, Box<dyn Error>>;
    fn get_funds_total(&self, client_id: u16) -> Result<Decimal, Box<dyn Error>>;
    fn verify_transaction(&self, trans: &Transaction) -> Result<(), Box<dyn Error>>;
+   fn read_transactions(&mut self, verbose: bool, withdraw_deposits: BTreeMap<u32, Transaction>, disputes: Vec<Transaction>, resolves: Vec<Transaction>, chargebacks: Vec<Transaction>);
+   fn run_report(&self);
 }

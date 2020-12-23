@@ -2,18 +2,23 @@ use csv::Trim;
 //use serde::Deserialize;
 use crate::{MAX_DECIMAL_PLACES, Transaction};
 use csv::{ReaderBuilder};
-use std::error::Error;
+use std::{error::Error, fs::File, io::BufReader};
 use rust_decimal::Decimal;
-use std::collections::BTreeMap; // use this since it's keep iterator sorted by key
-
-//use std::{fs::File};
+use std::collections::BTreeMap; // use this since it keeps the internal ordering sorted by key
 
 pub fn transaction_reader(verbose: bool, path: &str) -> Result<(BTreeMap<u32, Transaction>, Vec<Transaction>, Vec<Transaction>, Vec<Transaction>), Box<dyn Error>> {
+    let f = File::open(path)?;
+    let br = BufReader::new(f);
+    return transaction_reader_from(verbose, Box::new(br));
+}
+
+// add std::io::Read to make unit tessts easier to write without needing external files
+pub fn transaction_reader_from(verbose: bool, rdr: Box<dyn std::io::Read>) -> Result<(BTreeMap<u32, Transaction>, Vec<Transaction>, Vec<Transaction>, Vec<Transaction>), Box<dyn Error>> {
     let mut rb = ReaderBuilder::new();
     let mut rdr = rb
         .flexible(true) // needed to allow optional amount column at end
         .trim(Trim::All)// needed to enable field parsing
-        .from_path(path)?;
+        .from_reader(rdr);
     let it = rdr.deserialize();
     let mut dispute_result: Vec<Transaction> = Vec::new();
     let mut resolve_result: Vec<Transaction> = Vec::new();
@@ -65,25 +70,6 @@ pub fn transaction_reader(verbose: bool, path: &str) -> Result<(BTreeMap<u32, Tr
                 chargeback_result.push(trans);
             }
         }
-
-        //wd_result.insert(tid, trans);
-        // match result.entry(tid) {
-        //     Occupied(_) => {
-        //         if verbose {
-        //             eprintln!("tx id:[{:?}] already exists skipping record",tid);
-        //         }
-        //     },
-        //     Vacant(entry) => {
-        //         entry.insert(trans);
-        //     }
-        // };
     }
     Ok((wd_result, dispute_result, resolve_result, chargeback_result))
 }
-
-// pub fn transaction_iterator(verbose: bool, path: &str) -> Result<DeserializeRecordsIter<File, Transaction>, Box<Error>> {
-//     let mut rb = ReaderBuilder::new();
-//     let mut rdr = rb.trim(Trim::All).from_path(path)?;
-//     let it = rdr.deserialize();
-//     return Ok(it);
-// }
